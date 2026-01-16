@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from fastapi import Depends, FastAPI, Header, HTTPException
 from dotenv import load_dotenv
+import os
+from .discovery import DiscoveryConfig, MdnsAdvertiser
 
 from .config import load_settings, Settings
 from .dedupe import DedupeGate
@@ -64,6 +66,32 @@ def create_app() -> FastAPI:
     # Instead: enforce auth globally EXCEPT /health by adding a middleware.
     # For v1, we'll do a global dependency and carve out /health with an exception.
 
+    advertiser = MdnsAdvertiser(
+        DiscoveryConfig(
+            enabled=(os.getenv("BELLPHONICS_DISCOVERY_ENABLED", "false").lower() == "true"),
+            instance_name=os.getenv("BELLPHONICS_DISCOVERY_NAME", "Bellphonics"),
+            port=settings.bind_port,
+            txt={
+                "service": "bellphonics",
+                "version": "0.1.0",
+                "path": "/speak",
+            },
+        )
+    )
+
+    @app.on_event("startup")
+    async def _startup():
+        logging.basicConfig(level=logging.INFO)
+        await speech_queue.start()
+        await advertiser.start()
+        log.info("Bellphonics started")
+
+    @app.on_event("shutdown")
+    async def _shutdown():
+        await advertiser.stop()
+        await speech_queue.stop()
+        log.info("Bellphonics stopped")
+
     @app.middleware("http")
     async def api_key_middleware(request, call_next):
         # allow health without auth
@@ -77,6 +105,7 @@ def create_app() -> FastAPI:
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
 
         return await call_next(request)
+    
 
     @app.on_event("startup")
     async def _startup():
