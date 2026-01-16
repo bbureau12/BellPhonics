@@ -27,6 +27,8 @@ class Settings:
     piper_exe: str = "piper"
     piper_model: str = ""
     piper_speaker_id: int = 0
+    piper_voices_dir: str = "app/tts/voicepacks"
+    piper_default_voice: str = "en_GB-alba-medium"
 
 
 def load_settings() -> Settings:
@@ -45,4 +47,6 @@ def load_settings() -> Settings:
         piper_exe=_env("BELLPHONICS_PIPER_EXE", "piper") or "piper",
         piper_model=_env("BELLPHONICS_PIPER_MODEL", "") or "",
         piper_speaker_id=int(_env("BELLPHONICS_PIPER_SPEAKER_ID", "0") or "0"),
+        piper_voices_dir=_env("BELLPHONICS_PIPER_VOICES_DIR", "app/tts/voicepacks") or "app/tts/voicepacks",
+        piper_default_voice=_env("BELLPHONICS_PIPER_DEFAULT_VOICE", "en_GB-alba-medium") or "en_GB-alba-medium",
     )

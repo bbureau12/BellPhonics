@@ -25,7 +25,10 @@ def create_app() -> FastAPI:
         engine = WindowsSapiTTS()
     elif settings.tts_backend == "piper":
         from .tts.piper import PiperTTS
-        engine = PiperTTS(model_path=settings.piper_model)
+        engine = PiperTTS(
+            voices_dir=settings.piper_voices_dir,
+            default_voice=settings.piper_default_voice,
+        )
 
     gate = DedupeGate(ttl_s=settings.dedupe_ttl_s)
     speech_queue = SpeechQueue(engine=engine)
