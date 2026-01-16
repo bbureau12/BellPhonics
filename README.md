@@ -109,6 +109,58 @@ Bellphonics is designed to be the **last step** in a chain of reasoning — neve
 
 ---
 
+## Setup
+
+### Installation
+
+1. Clone the repository
+2. Create a virtual environment:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -e .
+   ```
+4. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+5. Edit `.env` and set your `BELLPHONICS_API_KEY`
+
+### Voice Models (Piper TTS)
+
+If using Piper TTS (recommended for offline, high-quality speech):
+
+1. Download a Piper voice model from [rhasspy/piper releases](https://github.com/rhasspy/piper/releases)
+2. Create the voicepacks directory:
+   ```bash
+   mkdir -p app/tts/voicepacks
+   ```
+3. Place both the `.onnx` and `.onnx.json` files in `app/tts/voicepacks/`
+4. Update `.env` to configure Piper:
+   ```bash
+   BELLPHONICS_TTS_BACKEND=piper
+   BELLPHONICS_PIPER_MODEL=app/tts/voicepacks/your-model-name.onnx
+   ```
+
+**Recommended voices:**
+- `en_GB-alba-medium` - British English, clear quality
+- `en_US-lessac-medium` - American English, natural quality
+
+Voice models are not included in the repository due to their size (100-200MB each).
+
+### Running
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8099
+```
+
+Or use the VS Code debugger (F5) with the included launch configuration.
+
+---
+
 ## Speech Event Contract
 
 Bellphonics consumes explicit, structured speech requests.

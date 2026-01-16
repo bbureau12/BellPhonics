@@ -22,6 +22,11 @@ class Settings:
     dedupe_ttl_s: int = 300
 
     tts_backend: str = "mock"
+    
+    # Piper TTS settings
+    piper_exe: str = "piper"
+    piper_model: str = ""
+    piper_speaker_id: int = 0
 
 
 def load_settings() -> Settings:
@@ -37,4 +42,7 @@ def load_settings() -> Settings:
         default_cooldown_s=int(_env("BELLPHONICS_DEFAULT_COOLDOWN_S", "20") or "20"),
         dedupe_ttl_s=int(_env("BELLPHONICS_DEDUPE_TTL_S", "300") or "300"),
         tts_backend=(_env("BELLPHONICS_TTS_BACKEND", "mock") or "mock").lower(),
+        piper_exe=_env("BELLPHONICS_PIPER_EXE", "piper") or "piper",
+        piper_model=_env("BELLPHONICS_PIPER_MODEL", "") or "",
+        piper_speaker_id=int(_env("BELLPHONICS_PIPER_SPEAKER_ID", "0") or "0"),
     )
