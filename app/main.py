@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from dotenv import load_dotenv
 
 from .config import load_settings, Settings
-from .cooldown import CooldownGate
+from .dedupe import DedupeGate
 from .queue import SpeechQueue
 from .tts.mock import MockTTS
 
@@ -24,7 +24,7 @@ def create_app() -> FastAPI:
         from .tts.sapi import WindowsSapiTTS
         engine = WindowsSapiTTS()
 
-    gate = CooldownGate(dedupe_ttl_s=settings.dedupe_ttl_s)
+    gate = DedupeGate(ttl_s=settings.dedupe_ttl_s)
     speech_queue = SpeechQueue(engine=engine)
 
     app = FastAPI(title="Bellphonics", version="0.1.0")
@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
     def get_settings() -> Settings:
         return settings
 
-    def get_gate() -> CooldownGate:
+    def get_gate() -> DedupeGate:
         return gate
 
     def get_queue() -> SpeechQueue:

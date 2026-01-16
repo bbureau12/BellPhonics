@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from .config import Settings
 from .auth import require_api_key
 from .models import SpeechEvent
-from .cooldown import CooldownGate
+from .dedupe import DedupeGate
 from .queue import SpeechQueue
 
 router = APIRouter()
@@ -15,7 +15,7 @@ def get_settings() -> Settings:
     raise RuntimeError("Settings dependency not wired")
 
 
-def get_gate() -> CooldownGate:
+def get_gate() -> DedupeGate:
     raise RuntimeError("Gate dependency not wired")
 
 
@@ -32,7 +32,7 @@ def health() -> dict:
 async def speak(
     event: SpeechEvent,
     settings: Settings = Depends(get_settings),
-    gate: CooldownGate = Depends(get_gate),
+    gate: DedupeGate = Depends(get_gate),
     q: SpeechQueue = Depends(get_queue),
     _: None = Depends(lambda x_api_key=None: None),  # placeholder for FastAPI signature
 ):
@@ -42,11 +42,8 @@ async def speak(
     # (We can’t inject Header here cleanly without repetition, so we do it in main with a dependency.)
     # This function assumes auth already ran.
 
-    cooldown_s = event.cooldown_s if event.cooldown_s is not None else settings.default_cooldown_s
-    res = gate.allow(event_id=event.event_id, cooldown_key=event.cooldown_key, cooldown_s=cooldown_s)
-
-    if not res.allowed:
-        return {"ok": True, "accepted": False, "reason": res.reason}
+    if not gate.allow(event.event_id):
+        return {"ok": True, "accepted": False, "reason": "duplicate_event"}
 
     await q.enqueue(event)
     return {"ok": True, "accepted": True}
