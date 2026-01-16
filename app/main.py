@@ -8,6 +8,7 @@ from .config import load_settings, Settings
 from .cooldown import CooldownGate
 from .queue import SpeechQueue
 from .tts.mock import MockTTS
+
 from . import api
 
 log = logging.getLogger("bellphonics")
@@ -19,6 +20,9 @@ def create_app() -> FastAPI:
 
     # TTS backend selection (v1: mock only)
     engine = MockTTS()
+    if settings.tts_backend == "sapi":
+        from .tts.sapi import WindowsSapiTTS
+        engine = WindowsSapiTTS()
 
     gate = CooldownGate(dedupe_ttl_s=settings.dedupe_ttl_s)
     speech_queue = SpeechQueue(engine=engine)
