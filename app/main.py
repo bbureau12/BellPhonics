@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-import logging
-from fastapi import Depends, FastAPI, Header, HTTPException
 from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, Header, HTTPException
+import logging
 import os
-from .discovery import DiscoveryConfig, MdnsAdvertiser
 
 from .config import load_settings, Settings
 from .dedupe import DedupeGate
+from .discovery import DiscoveryConfig, MdnsAdvertiser
 from .queue import SpeechQueue
+from .security import SecurityConfig, SecurityGate
 from .tts.mock import MockTTS
 
 from . import api
@@ -65,11 +66,21 @@ def create_app() -> FastAPI:
     # so simplest is to re-declare /speak here as a mounted dependency.)
     # Instead: enforce auth globally EXCEPT /health by adding a middleware.
     # For v1, we'll do a global dependency and carve out /health with an exception.
-
+    allow = os.getenv("BELLPHONICS_ALLOWLIST", "").strip()
+    allowlist = {ip.strip() for ip in allow.split(",") if ip.strip()}
+    sec = SecurityGate(SecurityConfig(
+        api_key=settings.api_key,
+        allowlist=allowlist,
+        rate_limit_per_min=int(os.getenv("BELLPHONICS_RATE_LIMIT_PER_MIN", "20")),
+        dedupe_ttl_s=settings.dedupe_ttl_s,
+    ))
     advertiser = MdnsAdvertiser(
         DiscoveryConfig(
             enabled=(os.getenv("BELLPHONICS_DISCOVERY_ENABLED", "false").lower() == "true"),
             instance_name=os.getenv("BELLPHONICS_DISCOVERY_NAME", "Bellphonics"),
+            host=os.getenv("BELLPHONICS_DISCOVERY_HOST", ""),
+            zone=os.getenv("BELLPHONICS_DISCOVERY_ZONE", ""),
+            subzone=os.getenv("BELLPHONICS_DISCOVERY_SUBZONE", ""),
             port=settings.bind_port,
             txt={
                 "service": "bellphonics",
@@ -78,6 +89,13 @@ def create_app() -> FastAPI:
             },
         )
     )
+
+    @app.middleware("http")
+    async def security_middleware(request, call_next):
+        resp = sec.middleware(request)
+        if resp is not None:
+            return resp
+        return await call_next(request)
 
     @app.on_event("startup")
     async def _startup():
@@ -89,32 +107,6 @@ def create_app() -> FastAPI:
     @app.on_event("shutdown")
     async def _shutdown():
         await advertiser.stop()
-        await speech_queue.stop()
-        log.info("Bellphonics stopped")
-
-    @app.middleware("http")
-    async def api_key_middleware(request, call_next):
-        # allow health without auth
-        if request.url.path == "/health":
-            return await call_next(request)
-
-        # require key for everything else
-        key = request.headers.get("X-API-Key")
-        if not key or key.strip() != settings.api_key:
-            from fastapi.responses import JSONResponse
-            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
-
-        return await call_next(request)
-    
-
-    @app.on_event("startup")
-    async def _startup():
-        logging.basicConfig(level=logging.INFO)
-        await speech_queue.start()
-        log.info("Bellphonics started")
-
-    @app.on_event("shutdown")
-    async def _shutdown():
         await speech_queue.stop()
         log.info("Bellphonics stopped")
 

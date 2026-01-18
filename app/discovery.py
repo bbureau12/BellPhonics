@@ -19,6 +19,8 @@ class DiscoveryConfig:
     instance_name: str = "Bellphonics"
     port: int = 8099
     host: str = ""  # if empty, infer local hostname
+    zone: str = ""  # optional zone metadata
+    subzone: str = ""  # optional subzone metadata
     txt: dict[str, str] = field(default_factory=dict)  # metadata
 
 
@@ -45,7 +47,12 @@ class MdnsAdvertiser:
         ip = socket.gethostbyname(socket.gethostname())
         addresses = [socket.inet_aton(ip)]
 
+        # Build properties from config txt, adding zone/subzone if provided
         props = {k.encode("utf-8"): v.encode("utf-8") for k, v in (self.cfg.txt or {}).items()}
+        if self.cfg.zone:
+            props[b"zone"] = self.cfg.zone.encode("utf-8")
+        if self.cfg.subzone:
+            props[b"subzone"] = self.cfg.subzone.encode("utf-8")
 
         self.aiozc = AsyncZeroconf(ip_version=IPVersion.V4Only)
         self.info = ServiceInfo(
