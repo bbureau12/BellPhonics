@@ -159,6 +159,172 @@ uvicorn app.main:app --host 0.0.0.0 --port 8099
 
 Or use the VS Code debugger (F5) with the included launch configuration.
 
+### Configuration
+
+Key environment variables in `.env`:
+
+```bash
+# API Security
+BELLPHONICS_API_KEY=your-secret-key
+
+# TTS Backend
+BELLPHONICS_TTS_BACKEND=piper  # or sapi, mock
+
+# Piper Voice Settings
+BELLPHONICS_PIPER_VOICES_DIR=app/tts/voicepacks
+BELLPHONICS_PIPER_DEFAULT_VOICE=en_GB-alba-medium
+
+# mDNS Discovery (optional)
+BELLPHONICS_DISCOVERY_ENABLED=true
+BELLPHONICS_DISCOVERY_NAME=Bellphonics
+BELLPHONICS_DISCOVERY_HOST=bellphonics
+BELLPHONICS_DISCOVERY_ZONE=home
+BELLPHONICS_DISCOVERY_SUBZONE=kitchen
+
+# Security
+BELLPHONICS_ALLOWLIST=192.168.1.50,echobell.local,127.0.0.1
+BELLPHONICS_RATE_LIMIT_PER_MIN=30
+```
+
+---
+
+## API Endpoints
+
+### `GET /health`
+Health check endpoint (no authentication required).
+
+**Response:**
+```json
+{"ok": true}
+```
+
+### `GET /handshake`
+Returns server configuration and capabilities (no authentication required).
+
+**Response:**
+```json
+{
+  "ok": true,
+  "discovery": {
+    "enabled": true,
+    "instance_name": "Bellphonics",
+    "host": "bellphonics",
+    "zone": "home",
+    "subzone": "kitchen",
+    "port": 8099
+  },
+  "tts": {
+    "backend": "piper",
+    "piper": {
+      "voices_dir": "app/tts/voicepacks",
+      "default_voice": "en_GB-alba-medium",
+      "available_voices": [
+        "en_GB-alba-medium",
+        "en_GB-jenny_dioco-medium"
+      ]
+    }
+  },
+  "version": "0.1.0"
+}
+```
+
+### `POST /speak`
+Submit a speech event (requires API key).
+
+**Headers:**
+- `X-API-Key`: Your API key
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "event_id": "evt-001",
+  "ts": 1737024000,
+  "text": "Delivery at the front door",
+  "severity": "info",
+  "voice": "en_GB-alba-medium",
+  "volume": 0.8
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "accepted": true
+}
+```
+
+---
+
+## Discovery (mDNS/Bonjour)
+
+Bellphonics can advertise itself on the local network using mDNS (Bonjour).
+
+**Service Type:** `_bellphonics._tcp.local.`
+
+**TXT Records:**
+- `service=bellphonics`
+- `version=0.1.0`
+- `path=/speak`
+- `zone=<zone>` (if configured)
+- `subzone=<subzone>` (if configured)
+
+Clients like EchoBell can discover Bellphonics instances automatically without manual configuration.
+
+**Testing Discovery:**
+```bash
+python test_discovery.py
+```
+
+---
+
+## Security
+
+Bellphonics implements multiple security layers:
+
+### 1. API Key Authentication
+All `/speak` requests require an `X-API-Key` header matching `BELLPHONICS_API_KEY`.
+
+### 2. IP/DNS Allowlist
+Requests must originate from IPs or hostnames in `BELLPHONICS_ALLOWLIST`.
+- Supports both IP addresses (`192.168.1.50`) and DNS names (`echobell.local`)
+- DNS names are resolved and cached (5-minute TTL)
+- Empty allowlist allows all IPs (not recommended)
+
+### 3. Rate Limiting
+Limits requests per client to `BELLPHONICS_RATE_LIMIT_PER_MIN` per minute.
+
+### 4. Event Deduplication
+Prevents duplicate `event_id` values from being spoken within the TTL window (`BELLPHONICS_DEDUPE_TTL_S`).
+
+**Exempt Endpoints:**
+- `/health` - No authentication required
+- `/handshake` - No authentication required
+
+---
+
+## Voice Selection
+
+### Default Voice
+Set via `BELLPHONICS_PIPER_DEFAULT_VOICE` in `.env`.
+
+### Per-Request Voice
+Override the default by including `voice` in the speech event:
+
+```json
+{
+  "event_id": "evt-002",
+  "text": "Hello",
+  "voice": "en_GB-jenny_dioco-medium"
+}
+```
+
+### Available Voices
+Query `/handshake` to get a list of installed voices.
+
+Voices are loaded on-demand and cached for performance.
+
 ---
 
 ## Speech Event Contract
@@ -270,6 +436,17 @@ Bellphonics will never:
 - Make decisions about urgency
 
 Bellphonics exists to be *clear*, not clever.
+
+---
+
+## Architecture Decision Records
+
+See [docs/adr/](docs/adr/) for detailed architectural decisions including:
+- AsyncZeroconf for mDNS discovery
+- DedupeGate over CooldownGate
+- DNS allowlist with caching
+- Multi-voice directory loading
+- Public handshake endpoint
 
 ---
 
