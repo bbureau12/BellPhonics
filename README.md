@@ -465,7 +465,7 @@ Everything else is incremental.
 
 ## License
 
-TBD
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
